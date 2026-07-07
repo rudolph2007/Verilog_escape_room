@@ -1,0 +1,158 @@
+module all_module(
+    input clk,
+    input clk_1hz,
+    output penalty,
+    input reset,
+    output reg [7:0] master_timer,
+
+    // Stage 1 Inputs
+    input [3:0] s1_key,
+    input [3:0] s1_guess,
+    
+    // Stage 2 Inputs
+    input [3:0] s2_xcor,
+    input [3:0] s2_ycor,
+    
+    // Stage 3 Inputs
+    input [19:0] s3_guess_array,
+    output escaped,
+    output gameover
+);
+
+    wire stage1_fail, stage1_done, stage1_penalty, s1_out;
+    wire stage2_fail, stage2_done, stage2_penalty, s2_out;
+    wire stage3_fail, stage3_done, stage3_penalty;
+    wire [2:0] s1_pos;
+    
+    parameter IDLE=0, STAGE1=1, STAGE2=2, STAGE3=3, ESCAPED=4, GAMEOVER=5;
+    reg [2:0] current_state, next;
+    reg [63:0] state_name;
+
+    // Fixed Grouping: Wrapped states cleanly to calculate active master penalty
+    wire master_penalty = ((current_state == STAGE1 && stage1_penalty) ||
+                          (current_state == STAGE2 && stage2_penalty) ||
+                          (current_state == STAGE3 && stage3_penalty));
+
+    // State Name Debug Decoder
+    always @(*) begin
+        case (current_state)
+            IDLE:     state_name = "IDLE    ";
+            STAGE1:   state_name = "STAGE1  ";
+            STAGE2:   state_name = "STAGE2  ";
+            STAGE3:   state_name = "STAGE3  ";
+            ESCAPED:  state_name = "ESCAPED ";
+            GAMEOVER: state_name = "GAMEOVER";
+            default:  state_name = "UNKNOWN ";
+        endcase
+    end
+
+    // Submodule Instantiations
+    module_1 inst1(
+        .Key(s1_key), .Guess(s1_guess), .pos(s1_pos),
+        .stage1_done(stage1_done), .stage1_fail(stage1_fail), .penalty(stage1_penalty),
+        .reset(reset), .clk(clk)
+    );
+
+    module_2 inst2(
+        .clk(clk), .reset(reset), .xcor(s2_xcor), .ycor(s2_ycor),
+        .stage2_done(stage2_done), .stage2_fail(stage2_fail), .penalty(stage2_penalty)
+    );
+
+    module_3 inst3(
+        .clk(clk), .reset(reset), .guess_array(s3_guess_array),
+        .stage3_done(stage3_done), .stage3_fail(stage3_fail), .penalty(stage3_penalty)
+    );
+
+    // Combinational Next-State Logic (Fixed: Used clean if-else structures)
+    always @(*) begin
+        case(current_state)
+            IDLE: next = STAGE1;
+            
+            STAGE1: begin
+                if (master_timer == 8'd0 || stage1_fail) 
+                    next = GAMEOVER;
+                else if (stage1_done) 
+                    next = STAGE2;
+                else 
+                    next = STAGE1;
+            end
+
+            STAGE2: begin
+                if (master_timer == 8'd0 || stage2_fail) 
+                    next = GAMEOVER;
+                else if (stage2_done) 
+                    next = STAGE3;
+                else 
+                    next = STAGE2;
+            end
+
+            STAGE3: begin
+                if (master_timer == 8'd0 || stage3_fail) 
+                    next = GAMEOVER;
+                else if (stage3_done) 
+                    next = ESCAPED;
+                else 
+                    next = STAGE3;
+            end
+
+            ESCAPED:  next = ESCAPED;
+            GAMEOVER: next = GAMEOVER;
+            default:  next = IDLE;
+        endcase
+    end
+
+    // State Transitions
+    always @(posedge clk) begin
+        if (reset) begin
+            current_state <= IDLE;
+        end else begin
+            current_state <= next;
+        end
+    end
+
+    // Unified Timer & Penalty Control Logic
+    reg penalty_latched;
+    reg clk_1hz_delayed;
+    wire clk_1hz_posedge = (clk_1hz && !clk_1hz_delayed); // Detect edge cleanly
+
+    always @(posedge clk) begin
+        if (reset) begin
+            master_timer     <= 8'd99;
+            penalty_latched  <= 1'b0;
+            clk_1hz_delayed  <= 1'b0;
+        end else begin
+            clk_1hz_delayed <= clk_1hz;
+
+            // Only run the timer structure during an active gameplay stage
+            if ((current_state == STAGE1 || current_state == STAGE2 || current_state == STAGE3) && (master_timer > 8'd0)) begin
+                
+                // 1. Check for a NEW penalty trigger edge
+                if (master_penalty && !penalty_latched) begin
+                    penalty_latched <= 1'b1;
+                    if (master_timer > 8'd5)
+                        master_timer <= master_timer - 8'd5;
+                    else
+                        master_timer <= 8'd0;
+                end 
+                // 2. Continuous penalty application or clear latch
+                else begin
+                    if (!master_penalty) begin
+                        penalty_latched <= 1'b0; // Release latch once penalty flag drops
+                    end
+
+                    // Apply standard 1Hz second tick decrement safely in the fallback slot
+                    if (clk_1hz_posedge) begin
+                        master_timer <= master_timer - 8'd1;
+                    end
+                end
+
+            end
+        end
+    end
+
+    // Output Continuous Assignments
+    assign escaped  = (current_state == ESCAPED && stage1_done==1 && stage2_done==1 && stage3_done==1 && reset==0);
+    assign gameover = (current_state == GAMEOVER||stage1_fail||stage2_fail||stage3_fail && reset==0);
+    assign penalty  =(penalty_latched && reset==0);
+
+endmodule
