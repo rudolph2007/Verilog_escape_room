@@ -1,0 +1,86 @@
+module module_3(
+    input clk,
+    input [19:0] guess_array,
+    input reset,
+    output stage3_done,
+    output stage3_fail,
+    output penalty
+);
+    reg [2:0] lives;
+    reg [19:0] bomb; 
+    reg [19:0] last_guess_array;
+    reg [2:0] pen_tally = 3'd0;
+    
+    localparam GUESS = 3'd0, COMPARE = 3'd1, DIFFUSED = 3'd2, WRONG = 3'd3;
+    reg [2:0] state, next;
+
+    wire [3:0] g0 = guess_array[3:0];
+    wire [3:0] g1 = guess_array[7:4];
+    wire [3:0] g2 = guess_array[11:8];
+    wire [3:0] g3 = guess_array[15:12];
+    wire [3:0] g4 = guess_array[19:16];
+    
+    wire [3:0] b0 = bomb[3:0];
+    wire [3:0] b1 = bomb[7:4];
+    wire [3:0] b2 = bomb[11:8];
+    wire [3:0] b3 = bomb[15:12];
+    wire [3:0] b4 = bomb[19:16];
+
+    initial begin
+        bomb[3:0]= 4'd2; 
+        bomb[7:4]= 4'd4; 
+        bomb[11:8]= 4'd7; 
+        bomb[15:12]= 4'd8; 
+        bomb[19:16] = 4'd9;
+    end
+
+    // Combinational Next-State Logic
+    always @(*) begin
+        case(state)
+            // Fix: Explicitly shift to COMPARE only when a valid, non-zero guess is entered
+            GUESS:    next = (guess_array != 20'b0 && guess_array != last_guess_array) ? COMPARE : GUESS;
+            COMPARE:  next = ((b4==g4) && (b3==g3) && (b2==g2) && (b1==g1) && (b0==g0)) ? DIFFUSED : WRONG;
+            WRONG:    next = GUESS;
+            DIFFUSED: next = DIFFUSED;
+            default:  next = GUESS;
+        endcase
+    end
+
+    // Unified Sequential Control Block
+    always @(posedge clk) begin
+        if (reset) begin
+            state            <= GUESS;
+            lives            <= 3'd3;
+            last_guess_array <= 20'b0;
+            pen_tally        <= 3'd0;
+            // Reset state pattern: 98742 (hex)
+            bomb[3:0]        <= 4'd2; 
+            bomb[7:4]        <= 4'd4; 
+            bomb[11:8]       <= 4'd7; 
+            bomb[15:12]      <= 4'd8; 
+            bomb[19:16]      <= 4'd9;
+        end else begin
+            state <= next;
+            
+            // Continuous bomb rotation ONLY when idling in the GUESS state
+            if (state == GUESS) begin
+                bomb <= {bomb[15:0], bomb[19:16]}; // Circular left shift of 4-bit nibbles
+            end
+
+            if (state == GUESS && guess_array != 20'b0) begin
+                last_guess_array <= guess_array;
+            end
+            
+            if (state == WRONG) begin
+                lives     <= lives - 3'd1;
+                pen_tally <= pen_tally + 3'd1;
+            end
+        end
+    end
+
+    // Outputs
+    assign stage3_done = (state == DIFFUSED && (lives > 0 || pen_tally != 3'd3) && reset == 0);
+    assign stage3_fail = ((pen_tally >= 3'd3 || lives == 3'd0) && reset == 0);
+    assign penalty     = (state == WRONG && reset == 0);
+endmodule
+
