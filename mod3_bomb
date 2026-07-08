@@ -37,7 +37,7 @@ module module_3(
     // Combinational Next-State Logic
     always @(*) begin
         case(state)
-            // Fix: Explicitly shift to COMPARE only when a valid, non-zero guess is entered
+            //  Explicitly shift to COMPARE only when a valid, non-zero guess is entered
             GUESS:    next = (guess_array != 20'b0 && guess_array != last_guess_array) ? COMPARE : GUESS;
             COMPARE:  next = ((b4==g4) && (b3==g3) && (b2==g2) && (b1==g1) && (b0==g0)) ? DIFFUSED : WRONG;
             WRONG:    next = GUESS;
