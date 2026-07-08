@@ -51,3 +51,102 @@ module module_2(
     assign stage2_fail = ((lives == 3'd0)||(pen_tally==3'd3) && state==HIT);
     assign penalty     = (state == HIT && reset==0);
 endmodule
+
+//////////////////Testbench///////////////////
+
+`timescale 1ns/1ns
+
+module tb_module_2;
+    reg clk;
+    reg [3:0] xcor;
+    reg [3:0] ycor;
+    reg reset;
+
+    // Testbench Outputs (monitored as wires)
+    wire stage2_done;
+    wire stage2_fail;
+    wire penalty;
+
+    module_2 dut (
+        .clk(clk),
+        .xcor(xcor),
+        .ycor(ycor),
+        .reset(reset),
+        .stage2_done(stage2_done),
+        .stage2_fail(stage2_fail),
+        .penalty(penalty)
+    );
+    always #5 clk = ~clk;
+
+    initial begin
+        // Setup Waveform Dump
+        $dumpfile("stage2_wave.vcd");
+        $dumpvars(0, tb_module_2);
+
+        // System Monitor
+        $monitor("Time=%0dt | Reset=%b | Position=(%d,%d) | Done=%b | Fail=%b | Penalty=%b", 
+                 $time, reset, xcor, ycor,  stage2_done, stage2_fail, penalty);
+
+        // Initialize System Inputs
+        clk = 0;
+        reset = 1;
+        xcor = 4'd0;
+        ycor = 4'd0;
+
+        #15;
+        reset = 0;
+        #5;
+        
+        
+
+        // case 1  start
+        xcor = 4'd0;
+        ycor = 4'd0;
+     
+
+        if(penalty==1) begin 
+                $display("You got shot by a laser");
+        end
+       
+         #40
+
+        // case 2 safe 
+        xcor = 4'd1;
+        ycor = 4'd0;
+       
+       if(penalty==1) begin 
+                $display("You got shot by a laser");
+        end
+        
+        #40
+        
+
+        // case 3 laser shot at(2,3)
+        xcor = 4'd2;
+        ycor = 4'd3;
+       
+        if(penalty==1) begin 
+                $display("You got shot by a laser");
+        end
+        
+        #40
+
+        xcor = 4'd3;
+        ycor = 4'd1;
+       
+        if(penalty==1) begin 
+                $display("You got shot by a laser");
+        end
+        
+        
+
+        
+        
+        wait(stage2_done==1|| stage2_fail==1);
+        
+        #20;
+        $display("\n[TIME: %0t] Simulation Finished! Stage 2 Diffusion Passed.", $time);
+
+    $finish;
+    end
+endmodule
