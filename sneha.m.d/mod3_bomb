@@ -84,3 +84,71 @@ module module_3(
     assign penalty     = (state == WRONG && reset == 0);
 endmodule
 
+/////////////////////Testbench//////////////////////
+
+`timescale 1ns/1ns
+
+module tb_module_3;
+    reg clk;
+    reg [19:0] guess_array;
+    reg reset;
+    wire stage3_done;
+    wire stage3_fail;
+    wire penalty;
+
+    module_3 dut (
+        .clk(clk),
+        .guess_array(guess_array),
+        .reset(reset),
+        .stage3_done(stage3_done),
+        .stage3_fail(stage3_fail),
+        .penalty(penalty)
+    );
+
+    // 10ns Clock Period
+    always #5 clk = ~clk;
+
+    initial begin
+        $dumpfile("stage3done_wave.vcd");
+        $dumpvars(0, tb_module_3);
+
+        // Printing out Bomb in hex (%h) to explicitly watch it change
+        $monitor("Time=%0dt | State=%0d | Bomb Pattern=%h | Guess=%h | Done=%b", 
+                 $time, dut.state, dut.bomb, guess_array, stage3_done);
+        
+        clk = 0;
+        reset = 1;
+        guess_array = 20'd0;
+        
+
+        // Hold reset active for 2 clock cycles
+        #20;
+        reset = 0;
+        
+        // Let it sit in GUESS state for exactly 1 clock cycle to watch it cycle
+        @(posedge clk); 
+        #1; // Step slightly past the clock edge to prevent setup timing violations
+
+        $display("\n--- Sending Matching Guess Pattern ---");
+        /*
+          At Reset: Bomb = 98742
+          After 1 Clock Cycle Rotation: 
+          Nibbles shift left -> 87429
+        */
+        guess_array = 20'h74298; 
+
+        // Give the state machine a few clock ticks to progress to DIFFUSED
+        #40;
+
+        if (stage3_done == 1) begin
+            $display("SUCCESS: stage3_done triggered perfectly!");
+        end else begin
+            $display("FAILURE: stage3_done missed. Check the logs above.");
+        end
+
+        #20;
+        $finish;
+    end
+endmodule
+
+
