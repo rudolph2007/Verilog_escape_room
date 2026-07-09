@@ -1,0 +1,69 @@
+module mfsm(
+    input clk,
+    input reset,
+    input start,
+
+    input stage1_done,
+    input stage1_fail,
+
+    input stage2_done,
+    input stage2_fail,
+
+    input stage3_done,
+    input stage3_fail,
+
+    input timer_expired,
+
+    output reg [2:0] state
+);
+
+localparam IDLE      = 3'd0;
+localparam STAGE1    = 3'd1;
+localparam STAGE2    = 3'd2;
+localparam STAGE3    = 3'd3;
+localparam ESCAPED   = 3'd4;
+localparam GAME_OVER = 3'd5;
+
+always @(posedge clk or posedge reset)
+begin
+    if(reset)
+        state <= IDLE;
+
+    else
+    begin
+        case(state)
+
+        IDLE:
+            if(start)
+                state <= STAGE1;
+
+        STAGE1:
+            if(timer_expired || stage1_fail)
+                state <= GAME_OVER;
+            else if(stage1_done)
+                state <= STAGE2;
+
+        STAGE2:
+            if(timer_expired || stage2_fail)
+                state <= GAME_OVER;
+
+            else if(stage2_done)
+                state <= STAGE3;
+                
+        STAGE3:
+            if(timer_expired || stage3_fail)
+                state <= GAME_OVER;
+            else if(stage3_done)
+                state <= ESCAPED;
+
+        ESCAPED:
+            state <= ESCAPED;
+
+        GAME_OVER:
+            state <= GAME_OVER;
+
+        endcase
+    end
+end
+
+endmodule
