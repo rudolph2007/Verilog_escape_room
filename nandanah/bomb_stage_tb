@@ -1,0 +1,124 @@
+`timescale 1ns/1ps
+
+module bomb_stage_tb;
+
+// Inputs
+reg clk;
+reg reset;
+reg enable;
+reg submit;
+reg time_up;
+reg [3:0] user_pattern;
+
+// Outputs
+wire stage3_done;
+wire stage3_fail;
+wire penalty_pulse;
+wire [2:0] attempt_count;
+
+// Instantiate DUT
+
+bomb_stage DUT(
+
+    .clk(clk),
+    .reset(reset),
+    .enable(enable),
+
+    .submit(submit),
+    .time_up(time_up),
+
+    .user_pattern(user_pattern),
+
+    .stage3_done(stage3_done),
+    .stage3_fail(stage3_fail),
+    .penalty_pulse(penalty_pulse),
+
+    .attempt_count(attempt_count)
+
+);
+
+// Clock Generation
+always
+begin
+    #5 clk = ~clk;
+end
+
+// Test Sequence
+initial
+begin
+   $dumpfile("dump.vcd");   
+  $dumpvars(0, bomb_stage_tb);  
+
+    // Initialize signals
+    clk = 0;
+    reset = 1;
+    enable = 0;
+    submit = 0;
+    time_up = 0;
+    user_pattern = 4'b0000;
+
+    // Reset
+    #20;
+    reset = 0;
+
+    // Enable Bomb Stage
+    enable = 1;
+
+    // Test 1 : Wrong Pattern
+    user_pattern = 4'b1111;
+
+    submit = 1;
+    #10;
+    submit = 0;
+
+    #20;
+
+    // Test 2 : Another Wrong Pattern
+    user_pattern = 4'b0001;
+
+    submit = 1;
+    #10;
+    submit = 0;
+
+    #20;
+
+    // Test 3 : Correct Pattern
+    // Assuming BOMB_PATTERN = 4'b1101
+    user_pattern = 4'b1101;
+
+    submit = 1;
+    #10;
+    submit = 0;
+
+    #20;
+
+    // Test 4 : Time Up
+    time_up = 1;
+
+    #10;
+
+    time_up = 0;
+
+    #20;
+
+    $finish;
+
+end
+
+// Monitor Signals
+initial
+begin
+
+    $monitor(
+        "Time=%0t Pattern=%b Attempts=%d Done=%b Fail=%b Penalty=%b",
+        $time,
+        user_pattern,
+        attempt_count,
+        stage3_done,
+        stage3_fail,
+        penalty_pulse
+    );
+
+end
+
+endmodule
