@@ -1,0 +1,163 @@
+module escape_room_top(
+
+    input clk,
+    input reset,
+    input start,
+
+    // Stage 1 Inputs
+    input password_submit,
+    input [3:0] password_guess,
+
+    // Stage 2 Inputs
+    input up,
+    input down,
+    input left,
+    input right,
+
+    // Stage 3 Inputs
+    input pattern_submit,
+    input [3:0] player_guess,
+
+    // Useful Outputs
+    output [7:0] time_left,
+    output [2:0] master_state,
+
+    output [2:0] match_count,
+    output [2:0] attempts_left,
+
+    output [3:0] current_pattern
+);
+
+
+// Internal Wires
+wire stage1_done;
+wire stage1_fail;
+
+wire stage2_done;
+wire stage2_fail;
+
+wire stage3_done;
+wire stage3_fail;
+
+wire penalty1;
+wire penalty2;
+wire penalty3;
+
+wire timer_expired;
+
+wire stage1_enable;
+wire stage2_enable;
+wire stage3_enable;
+
+wire penalty_pulse;
+
+
+// Stage Enables
+assign stage1_enable = (master_state == 3'd1);
+assign stage2_enable = (master_state == 3'd2);
+assign stage3_enable = (master_state == 3'd3);
+
+
+// Combined Penalty Signal
+assign penalty_pulse =
+       penalty1 |
+       penalty2 |
+       penalty3;
+
+
+// Master FSM
+master_fsm MASTER(
+
+    .clk(clk),
+    .reset(reset),
+    .start(start),
+
+    .stage1_done(stage1_done),
+    .stage1_fail(stage1_fail),
+
+    .stage2_done(stage2_done),
+    .stage2_fail(stage2_fail),
+
+    .stage3_done(stage3_done),
+    .stage3_fail(stage3_fail),
+
+    .timer_expired(timer_expired),
+
+    .state(master_state)
+);
+
+
+// Timer
+master_timer TIMER(
+
+    .clk(clk),
+    .reset(reset),
+
+    .enable(start),
+
+    .penalty_pulse(penalty_pulse),
+
+    .time_left(time_left),
+
+    .timer_expired(timer_expired)
+);
+
+
+// Stage 1
+stage1_password STAGE1(
+
+    .clk(clk),
+    .reset(reset),
+    .enable(stage1_enable),
+
+    .submit(password_submit),
+    .guess(password_guess),
+
+    .stage1_done(stage1_done),
+    .stage1_fail(stage1_fail),
+
+    .penalty_pulse(penalty1),
+
+    .match_count(match_count),
+    .attempts_left(attempts_left)
+);
+
+
+// Stage 2
+stage2_laser STAGE2(
+
+    .clk(clk),
+    .reset(reset),
+    .enable(stage2_enable),
+
+    .up(up),
+    .down(down),
+    .left(left),
+    .right(right),
+
+    .stage2_done(stage2_done),
+    .stage2_fail(stage2_fail),
+
+    .penalty_pulse(penalty2)
+);
+
+
+// Stage 3
+stage3_bomb STAGE3(
+
+    .clk(clk),
+    .reset(reset),
+    .enable(stage3_enable),
+
+    .submit(pattern_submit),
+    .player_guess(player_guess),
+
+    .stage3_done(stage3_done),
+    .stage3_fail(stage3_fail),
+
+    .penalty_pulse(penalty3),
+
+    .current_pattern(current_pattern)
+);
+
+endmodule
