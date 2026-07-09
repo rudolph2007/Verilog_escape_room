@@ -1,0 +1,131 @@
+`timescale 1ns/1ps
+
+module laser_stage_tb;
+
+
+// Inputs
+reg clk;
+reg reset;
+reg enable;
+
+reg move_up;
+reg move_down;
+reg move_left;
+reg move_right;
+
+// Outputs
+wire [1:0] row;
+wire [1:0] col;
+wire check;
+wire penalty_pulse;
+wire stage2_done;
+
+// Instantiate DUT
+laser_stage DUT(
+
+    .clk(clk),
+    .reset(reset),
+    .enable(enable),
+
+    .move_up(move_up),
+    .move_down(move_down),
+    .move_left(move_left),
+    .move_right(move_right),
+
+    .row(row),
+    .col(col),
+
+    .check(check),
+    .penalty_pulse(penalty_pulse),
+    .stage2_done(stage2_done)
+
+);
+
+// Clock Generation
+always
+begin
+    #5 clk = ~clk;
+end
+
+// Test Sequence
+initial
+begin
+  $dumpfile("dump.vcd");   
+  $dumpvars(0, laser_stage_tb);
+
+    // Initialize inputs
+    clk = 0;
+    reset = 1;
+    enable = 0;
+
+    move_up = 0;
+    move_down = 0;
+    move_left = 0;
+    move_right = 0;
+
+    // Reset
+    #20;
+    reset = 0;
+
+    // Enable Stage
+    enable = 1;
+
+    // Test 1 : Move Right
+    move_right = 1;
+    #10;
+    move_right = 0;
+
+    #10;
+
+    // Test 2 : Move Down
+    move_down = 1;
+    #10;
+    move_down = 0;
+
+    #10;
+
+    // Test 3 : Move into Hazard (if applicable)
+    move_down = 1;
+    #10;
+    move_down = 0;
+
+    #20;
+
+    // Test 4 : Continue Moving
+    move_right = 1;
+    #10;
+    move_right = 0;
+
+    #10;
+
+    move_right = 1;
+    #10;
+    move_right = 0;
+
+    #10;
+
+    move_down = 1;
+    #10;
+    move_down = 0;
+
+    #20;
+
+    $finish;
+
+end
+
+// Monitor Outputs
+initial
+begin
+    $monitor(
+        "Time=%0t  Row=%d  Col=%d  Hazard=%b  Penalty=%b  Done=%b",
+        $time,
+        row,
+        col,
+        check,
+        penalty_pulse,
+        stage2_done
+    );
+end
+
+endmodule
