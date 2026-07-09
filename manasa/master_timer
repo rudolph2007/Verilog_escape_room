@@ -1,0 +1,31 @@
+module mtimer #(
+    parameter START_TIME = 120,
+    parameter PENALTY = 5
+)(
+    input clk,
+    input reset,
+    input enable,
+    input penalty_pulse,
+
+    output reg [7:0] time_left,
+    output timer_expired
+);
+
+always @(posedge clk or posedge reset)
+begin
+    if(reset)
+        time_left <= START_TIME;
+
+    else if(enable)
+    begin
+        if(time_left > 0)
+            time_left <= time_left - 1;
+
+        if(penalty_pulse && time_left > PENALTY)
+            time_left <= time_left - PENALTY;
+    end
+end
+
+assign timer_expired = (time_left == 0);
+
+endmodule
