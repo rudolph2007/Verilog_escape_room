@@ -158,161 +158,141 @@ module all_module(
 endmodule
 
 //////////////////////// Testbench//////////////////////////
-module all_module(
-    input clk,
-    input clk_1hz,
-    output penalty,
-    input reset,
-    output reg [7:0] master_timer,
+`timescale 1ns/1ns
+
+module tb_all_module;
+    // Clock and Control Inputs
+    reg clk;
+    reg clk_1hz;
+    reg reset;
 
     // Stage 1 Inputs
-    input [3:0] s1_key,
-    input [3:0] s1_guess,
-    
+    reg [3:0] s1_key;
+    reg [3:0] s1_guess;
+
     // Stage 2 Inputs
-    input [3:0] s2_xcor,
-    input [3:0] s2_ycor,
-    
+    reg [3:0] s2_xcor;
+    reg [3:0] s2_ycor;
+
     // Stage 3 Inputs
-    input [19:0] s3_guess_array,
-    output escaped,
-    output gameover
-);
+    reg [19:0] s3_guess_array;
 
-    wire stage1_fail, stage1_done, stage1_penalty, s1_out;
-    wire stage2_fail, stage2_done, stage2_penalty, s2_out;
-    wire stage3_fail, stage3_done, stage3_penalty;
-    wire [2:0] s1_pos;
+    // System Monitoring Wires
+    wire [7:0] master_timer;
+    wire escaped;
+    wire gameover;
+    wire penalty;
+
+    // Device Under Test (DUT) Instantiation
+    all_module dut (
+        .clk(clk),
+        .clk_1hz(clk_1hz),
+        .penalty(penalty),
+        .reset(reset),
+        .master_timer(master_timer),
+        .s1_key(s1_key),
+        .s1_guess(s1_guess),
+        .s2_xcor(s2_xcor),
+        .s2_ycor(s2_ycor),
+        .s3_guess_array(s3_guess_array),
+        .escaped(escaped),
+        .gameover(gameover)
+    );
+
+    // --- Clock Generators ---
+    // Master Clock: Toggles every 5ns (10ns clock cycle period)
+    always #5 clk = ~clk;       
     
-    parameter IDLE=0, STAGE1=1, STAGE2=2, STAGE3=3, ESCAPED=4, GAMEOVER=5;
-    reg [2:0] current_state, next;
-    reg [63:0] state_name;
+    // 1Hz Countdown Clock: Toggles every 100ns (Accelerated for simulation tracking)
+    always #100 clk_1hz = ~clk_1hz; 
 
-    // Fixed Grouping: Wrapped states cleanly to calculate active master penalty
-    wire master_penalty = ((current_state == STAGE1 && stage1_penalty) ||
-                          (current_state == STAGE2 && stage2_penalty) ||
-                          (current_state == STAGE3 && stage3_penalty));
-
-    // State Name Debug Decoder
-    always @(*) begin
-        case (current_state)
-            IDLE:     state_name = "IDLE    ";
-            STAGE1:   state_name = "STAGE1  ";
-            STAGE2:   state_name = "STAGE2  ";
-            STAGE3:   state_name = "STAGE3  ";
-            ESCAPED:  state_name = "ESCAPED ";
-            GAMEOVER: state_name = "GAMEOVER";
-            default:  state_name = "UNKNOWN ";
-        endcase
+    // --- Active Terminal Tracker ---
+    initial begin
+        $dumpfile("allout_wave.vcd");
+        $dumpvars(0, tb_all_module);
+        
+        // Tracks timeline progress and state/timer variables
+        $monitor("Time=%0dns | State=%s | Timer=%d | Bomb=%h | Penalty=%b | Win=%b | Lose=%b", 
+                 $time, dut.state_name, master_timer, dut.inst3.bomb, penalty, escaped, gameover);
     end
 
-    // Submodule Instantiations
-    module_1 inst1(
-        .Key(s1_key), .Guess(s1_guess), .pos(s1_pos),
-        .stage1_done(stage1_done), .stage1_fail(stage1_fail), .penalty(stage1_penalty),
-        .reset(reset), .clk(clk)
-    );
+    // --- Main Stimulus Execution Pipeline ---
+    initial begin
+        // --- STEP 0: System Initialization ---
+        clk = 0;
+        clk_1hz = 0;
+        reset = 1;          // Start firmly in Reset to wipe out any initial 'X' values
+        s1_key = 4'b1010;
+        s1_guess = 4'b0000; 
+        s2_xcor = 4'd0; 
+        s2_ycor = 4'd0;
+        s3_guess_array = 20'b0;
 
-    module_2 inst2(
-        .clk(clk), .reset(reset), .xcor(s2_xcor), .ycor(s2_ycor),
-        .stage2_done(stage2_done), .stage2_fail(stage2_fail), .penalty(stage2_penalty)
-    );
+        // Hold reset active for 30ns to let all internal registers settle down safely
+        #30; 
+        
+        // Synchronize to the falling edge of the master clock to drop reset
+        @(negedge clk);
+        #10;
+        reset = 0; 
+        $display("\n--- SYSTEM RESET RELEASED. ENTERING STAGE 1 ---");
 
-    module_3 inst3(
-        .clk(clk), .reset(reset), .guess_array(s3_guess_array),
-        .stage3_done(stage3_done), .stage3_fail(stage3_fail), .penalty(stage3_penalty)
-    );
+        // --- STEP 1: Process Stage 1 (Password Entry) ---
+        // Let the state machine rest inside STAGE 1 for a few clock cycles to see the timer tick
+        #80;
+        
+        // Apply the correct puzzle match guess
+        @(negedge clk);
+        #200;
+        s1_guess = 4'b1010; 
+        $display("\n[TB STIMULUS] Dispatched correct Stage 1 Password Guess (4'b1010)");
 
-    // Combinational Next-State Logic (Fixed: Used clean if-else structures)
-    always @(*) begin
-        case(current_state)
-            IDLE: next = STAGE1;
-            
-            STAGE1: begin
-                if (master_timer == 8'd0 || stage1_fail) 
-                    next = GAMEOVER;
-                else if (stage1_done) 
-                    next = STAGE2;
-                else 
-                    next = STAGE1;
-            end
+        // Wait a few cycles for your 'all_module' FSM to register 'stage1_done' and transition to STAGE 2
+        #60;
 
-            STAGE2: begin
-                if (master_timer == 8'd0 || stage2_fail) 
-                    next = GAMEOVER;
-                else if (stage2_done) 
-                    next = STAGE3;
-                else 
-                    next = STAGE2;
-            end
+        // --- STEP 2: Process Stage 2 (Laser Maze Escape) ---
+        $display("\n[TB PROGRESS] Progressing through timeline to evaluate Stage 2 state...");
+        
+        // Route character step coordinates onto your required success values
+        @(negedge clk);
+        
+        s2_xcor = 4'd3; 
+        s2_ycor = 4'd3; 
+        $display("[TB STIMULUS] Routed character onto Stage 2 Success Coordinates (3,3)");
 
-            STAGE3: begin
-                if (master_timer == 8'd0 || stage3_fail) 
-                    next = GAMEOVER;
-                else if (stage3_done) 
-                    next = ESCAPED;
-                else 
-                    next = STAGE3;
-            end
+        // Wait a few cycles for the FSM to transition to STAGE 3
+        #60;
 
-            ESCAPED:  next = ESCAPED;
-            GAMEOVER: next = GAMEOVER;
-            default:  next = IDLE;
-        endcase
-    end
+        // --- STEP 3: Process Stage 3 (Bomb Diffusion) ---
+        $display("\n[TB PROGRESS] Progressing through timeline to evaluate Stage 3 state...");
+        
+        // Wait for a clean falling clock edge right inside Stage 3 to see the stable bomb pattern
+        @(negedge clk);
+       
+       
+        s3_guess_array = 20'h87429;
+       
+        
+        $display("[TB STIMULUS] Sampled changing matrix registers and pushed sequence: %h", s3_guess_array);
 
-    // State Transitions
-    always @(posedge clk) begin
-        if (reset) begin
-            current_state <= IDLE;
+        // Give the simulator plenty of time to process the final win/loss state and let the timer countdown run
+        #200;
+        
+        // --- Final Verification Review ---
+        $display("\n=========================================================================");
+        if (escaped) begin
+            $display("SUCCESS: Simulation passed all 3 sub-module puzzles sequentially!");
+            $display("Final Remaining Game Timer Counter: %d seconds", master_timer);
+        end else if (gameover) begin
+            $display("FAILURE: Game over state triggered.");
+            $display("Terminal Timer Register Value: %d seconds", master_timer);
         end else begin
-            current_state <= next;
+            $display("STALL: Simulation finished but state remained inside: %s", dut.state_name);
         end
+        $display("=========================================================================");
+
+        $finish;
     end
-
-    // Unified Timer & Penalty Control Logic
-    reg penalty_latched;
-    reg clk_1hz_delayed;
-    wire clk_1hz_posedge = (clk_1hz && !clk_1hz_delayed); // Detect edge cleanly
-
-    always @(posedge clk) begin
-        if (reset) begin
-            master_timer     <= 8'd99;
-            penalty_latched  <= 1'b0;
-            clk_1hz_delayed  <= 1'b0;
-        end else begin
-            clk_1hz_delayed <= clk_1hz;
-
-            // Only run the timer structure during an active gameplay stage
-            if ((current_state == STAGE1 || current_state == STAGE2 || current_state == STAGE3) && (master_timer > 8'd0)) begin
-                
-                // 1. Check for a NEW penalty trigger edge
-                if (master_penalty && !penalty_latched) begin
-                    penalty_latched <= 1'b1;
-                    if (master_timer > 8'd5)
-                        master_timer <= master_timer - 8'd5;
-                    else
-                        master_timer <= 8'd0;
-                end 
-                // 2. Continuous penalty application or clear latch
-                else begin
-                    if (!master_penalty) begin
-                        penalty_latched <= 1'b0; // Release latch once penalty flag drops
-                    end
-
-                    // Apply standard 1Hz second tick decrement safely in the fallback slot
-                    if (clk_1hz_posedge) begin
-                        master_timer <= master_timer - 8'd1;
-                    end
-                end
-
-            end
-        end
-    end
-
-    // Output Continuous Assignments
-    assign escaped  = (current_state == ESCAPED && stage1_done==1 && stage2_done==1 && stage3_done==1 && reset==0);
-    assign gameover = (current_state == GAMEOVER||stage1_fail||stage2_fail||stage3_fail && reset==0);
-    assign penalty  =(penalty_latched && reset==0);
 
 endmodule
+
