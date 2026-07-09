@@ -1,0 +1,90 @@
+`timescale 1ns/1ps
+
+module global_timer_tb;
+// Inputs
+
+reg clk;
+reg reset;
+reg enable;
+reg penalty_pulse;
+
+// Outputs
+
+wire [7:0] time_left;
+wire time_up;
+
+// Instantiate DUT
+
+global_timer DUT(
+
+    .clk(clk),
+    .reset(reset),
+    .enable(enable),
+    .penalty_pulse(penalty_pulse),
+
+    .time_left(time_left),
+    .time_up(time_up)
+
+);
+
+// Clock Generation
+
+always
+begin
+    #5 clk = ~clk;
+end
+
+// Test Sequence
+
+initial
+begin
+    $dumpfile("dump.vcd");   
+  $dumpvars(0, global_timer_tb);
+
+    // Initialize inputs
+    clk = 0;
+    reset = 1;
+    enable = 0;
+    penalty_pulse = 0;
+
+    // Reset
+
+    #20;
+    reset = 0;
+
+    // Start Timer
+
+    enable = 1;
+
+    // Let timer run
+    #100;
+
+    // Apply Penalty
+    penalty_pulse = 1;
+    #10;
+    penalty_pulse = 0;
+
+    // Continue Running
+    #100;
+
+    // Stop Simulation
+    $finish;
+
+end
+
+// Monitor
+initial
+begin
+
+    $monitor(
+        "Time=%0t Enable=%b Penalty=%b TimeLeft=%d TimeUp=%b",
+        $time,
+        enable,
+        penalty_pulse,
+        time_left,
+        time_up
+    );
+
+end
+
+endmodule
