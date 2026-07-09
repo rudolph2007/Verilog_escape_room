@@ -13,7 +13,7 @@ module x2(
     output reg penalty_pulse
 );
 
-parameter MAX_HITS = 2;
+parameter MAX_HITS = 3;
 
 reg [1:0] x;
 reg [1:0] y;
