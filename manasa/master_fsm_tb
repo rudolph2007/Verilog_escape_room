@@ -1,0 +1,79 @@
+`timescale 1ns/1ps
+
+module mfsm_tb;
+
+reg clk;
+reg reset;
+reg start;
+
+reg stage1_done;
+reg stage1_fail;
+
+reg stage2_done;
+reg stage2_fail;
+
+reg stage3_done;
+reg stage3_fail;
+
+reg timer_expired;
+
+wire [2:0] state;
+
+mfsm DUT(
+    .clk(clk),
+    .reset(reset),
+    .start(start),
+
+    .stage1_done(stage1_done),
+    .stage1_fail(stage1_fail),
+
+    .stage2_done(stage2_done),
+    .stage2_fail(stage2_fail),
+
+    .stage3_done(stage3_done),
+    .stage3_fail(stage3_fail),
+
+    .timer_expired(timer_expired),
+
+    .state(state)
+);
+
+always #5 clk = ~clk;
+
+initial begin
+
+    clk = 0;
+    reset = 1;
+
+    start = 0;
+
+    stage1_done = 0;
+    stage1_fail = 0;
+
+    stage2_done = 0;
+    stage2_fail = 0;
+
+    stage3_done = 0;
+    stage3_fail = 0;
+
+    timer_expired = 0;
+
+    #20 reset = 0;
+
+    start = 1;
+    #10 start = 0;
+
+    #20 stage1_done = 1;
+    #10 stage1_done = 0;
+
+    #20 stage2_done = 1;
+    #10 stage2_done = 0;
+
+    #20 stage3_done = 1;
+    #10 stage3_done = 0;
+
+    #50 $finish;
+
+end
+
+endmodule
