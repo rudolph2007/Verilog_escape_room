@@ -1,0 +1,61 @@
+`timescale 1ns/1ps
+
+module x3_tb;
+
+reg clk;
+reg reset;
+reg enable;
+
+reg submit;
+reg [3:0] player_guess;
+
+wire stage3_done;
+wire stage3_fail;
+wire penalty_pulse;
+
+wire [3:0] current_pattern;
+
+x3 #(
+    .PATTERN_PERIOD(5)
+)
+DUT(
+
+    .clk(clk),
+    .reset(reset),
+    .enable(enable),
+
+    .submit(submit),
+    .player_guess(player_guess),
+
+    .stage3_done(stage3_done),
+    .stage3_fail(stage3_fail),
+    .penalty_pulse(penalty_pulse),
+
+    .current_pattern(current_pattern)
+);
+
+always #5 clk = ~clk;
+
+initial begin
+
+    clk = 0;
+    reset = 1;
+    enable = 1;
+
+    submit = 0;
+    player_guess = 0;
+
+    #20 reset = 0;
+
+    #120;
+
+    player_guess = current_pattern;
+    submit = 1;
+
+    #10 submit = 0;
+
+    #50 $finish;
+
+end
+
+endmodule
