@@ -1,0 +1,46 @@
+`timescale 1ns/1ps
+
+module mtimer_tb;
+
+reg clk;
+reg reset;
+reg enable;
+reg penalty_pulse;
+
+wire [7:0] time_left;
+wire timer_expired;
+
+mtimer #(
+    .START_TIME(20),
+    .PENALTY(5)
+)
+DUT(
+    .clk(clk),
+    .reset(reset),
+    .enable(enable),
+    .penalty_pulse(penalty_pulse),
+
+    .time_left(time_left),
+    .timer_expired(timer_expired)
+);
+
+always #5 clk = ~clk;
+
+initial begin
+
+    clk = 0;
+    reset = 1;
+    enable = 0;
+    penalty_pulse = 0;
+
+    #20 reset = 0;
+
+    enable = 1;
+
+    #30 penalty_pulse = 1;
+    #10 penalty_pulse = 0;
+
+    #100 $finish;
+
+end
+end module
