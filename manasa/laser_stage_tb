@@ -1,0 +1,60 @@
+`timescale 1ns/1ps
+
+module x2_tb;
+
+reg clk;
+reg reset;
+reg enable;
+
+reg up;
+reg down;
+reg left;
+reg right;
+
+wire stage2_done;
+wire stage2_fail;
+wire penalty_pulse;
+
+x2 DUT(
+
+    .clk(clk),
+    .reset(reset),
+    .enable(enable),
+
+    .up(up),
+    .down(down),
+    .left(left),
+    .right(right),
+
+    .stage2_done(stage2_done),
+    .stage2_fail(stage2_fail),
+
+    .penalty_pulse(penalty_pulse)
+);
+
+always #5 clk = ~clk;
+
+initial begin
+
+    clk = 0;
+    reset = 1;
+    enable = 1;
+
+    up = 0;
+    down = 0;
+    left = 0;
+    right = 0;
+
+    #20 reset = 0;
+
+    right = 1;
+    #10 right = 0;
+
+    up = 1;
+    #10 up = 0;
+
+    #100 $finish;
+
+end
+
+endmodule
