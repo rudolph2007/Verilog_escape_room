@@ -1,0 +1,78 @@
+`timescale 1ns / 1ps
+
+module bomb_stage(
+
+    input clk,
+    input reset,
+    input enable,
+
+    input submit,
+    input time_up,
+
+    input [3:0] user_pattern,
+
+    output reg stage3_done,
+    output reg stage3_fail,
+    output reg penalty_pulse,
+
+    output reg [2:0] attempt_count
+
+);
+
+parameter BOMB_PATTERN = 4'b1101;
+parameter MAX_ATTEMPTS = 5;
+
+// Bomb Controller
+always @(posedge clk or posedge reset)
+begin
+
+    if(reset)
+    begin
+        attempt_count <= 0;
+        stage3_done <= 0;
+        stage3_fail <= 0;
+        penalty_pulse <= 0;
+    end
+
+    else if(enable && !stage3_done && !stage3_fail)
+    begin
+
+        // penalty pulse lasts one clock
+        penalty_pulse <= 0;
+
+        // Time over
+        if(time_up)
+        begin
+            stage3_fail <= 1;
+        end
+
+        // User presses submit
+        else if(submit)
+        begin
+
+            // Correct pattern
+            if(user_pattern == BOMB_PATTERN)
+            begin
+                stage3_done <= 1;
+            end
+
+            // Wrong pattern
+            else
+            begin
+
+                attempt_count <= attempt_count + 1;
+
+                penalty_pulse <= 1;
+
+                if(attempt_count == MAX_ATTEMPTS-1)
+                    stage3_fail <= 1;
+
+            end
+
+        end
+
+    end
+
+end
+
+endmodule
