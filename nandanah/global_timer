@@ -1,0 +1,68 @@
+`timescale 1ns / 1ps
+
+module global_timer(
+
+    input clk,
+    input reset,
+    input enable,
+    input penalty_pulse,
+
+    output reg [7:0] time_left,
+    output reg time_up
+
+);
+
+parameter START_TIME = 120;
+
+// Change this according to your FPGA clock
+parameter CLOCK_FREQ = 100000000;
+
+reg [31:0] second_counter;
+
+always @(posedge clk or posedge reset)
+begin
+
+    if(reset)
+    begin
+        time_left <= START_TIME;
+        second_counter <= 0;
+        time_up <= 0;
+    end
+
+    else if(enable)
+    begin
+
+        // One-second countdown
+        if(second_counter == CLOCK_FREQ-1)
+        begin
+
+            second_counter <= 0;
+
+            if(time_left > 0)
+                time_left <= time_left - 1;
+
+        end
+
+        else
+            second_counter <= second_counter + 1;
+
+        // Penalty
+        if(penalty_pulse)
+        begin
+
+            if(time_left > 5)
+                time_left <= time_left - 5;
+            else
+                time_left <= 0;
+
+        end
+
+        // Time Up
+        if(time_left == 0)
+            time_up <= 1;
+
+    end
+
+end
+
+endmodule
