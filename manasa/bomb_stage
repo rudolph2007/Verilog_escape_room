@@ -1,0 +1,137 @@
+module x3(
+    input clk,
+    input reset,
+    input enable,
+
+    input submit,
+    input [3:0] player_guess,
+
+    output reg stage3_done,
+    output reg stage3_fail,
+    output reg penalty_pulse,
+
+    output reg [3:0] current_pattern
+);
+
+parameter PATTERN_PERIOD = 50_000_000;
+// 50 MHz clock - 1 second pattern change
+
+localparam WAIT_GUESS = 2'd0;
+localparam SUCCESS    = 2'd1;
+localparam FAIL       = 2'd2;
+
+reg [1:0] state;
+reg [1:0] next_state;
+
+reg [1:0] pattern_index;
+
+reg [31:0] pattern_counter;
+
+
+// Pattern Timing
+always @(posedge clk or posedge reset)
+begin
+    if(reset)
+    begin
+        pattern_counter <= 0;
+        pattern_index   <= 0;
+    end
+
+    else if(enable && state == WAIT_GUESS)
+    begin
+        if(pattern_counter == PATTERN_PERIOD-1)
+        begin
+            pattern_counter <= 0;
+            pattern_index   <= pattern_index + 1;
+        end
+        else
+        begin
+            pattern_counter <= pattern_counter + 1;
+        end
+    end
+end
+
+
+// Pattern Decoder
+always @(*)
+begin
+    case(pattern_index)
+
+        2'd0: current_pattern = 4'd2;
+        2'd1: current_pattern = 4'd3;
+        2'd2: current_pattern = 4'd7;
+        2'd3: current_pattern = 4'd4;
+
+        default:
+            current_pattern = 4'd2;
+
+    endcase
+end
+
+
+// State Register
+always @(posedge clk or posedge reset)
+begin
+    if(reset)
+        state <= WAIT_GUESS;
+
+    else if(enable)
+        state <= next_state;
+end
+
+
+// Next State Logic
+always @(*)
+begin
+    next_state = state;
+
+    case(state)
+
+        WAIT_GUESS:
+        begin
+            if(submit)
+            begin
+                if(player_guess == current_pattern)
+                    next_state = SUCCESS;
+                else
+                    next_state = FAIL;
+            end
+        end
+
+        SUCCESS:
+            next_state = SUCCESS;
+
+        FAIL:
+            next_state = FAIL;
+
+        default:
+            next_state = WAIT_GUESS;
+
+    endcase
+end
+
+
+// Output Logic
+always @(*)
+begin
+    stage3_done   = 0;
+    stage3_fail   = 0;
+    penalty_pulse = 0;
+
+    case(state)
+
+        SUCCESS:
+        begin
+            stage3_done = 1;
+        end
+
+        FAIL:
+        begin
+            stage3_fail   = 1;
+            penalty_pulse = 1;
+        end
+
+    endcase
+end
+
+endmodule
